@@ -13,6 +13,16 @@ import { getCenter } from "ol/extent";
 
 // 功能输入
 import { ref, computed, onMounted } from "vue";
+import proj4 from 'proj4';
+import { register } from 'ol/proj/proj4';
+import { transform } from 'ol/proj';
+
+
+// 注册EPSG:28992坐标系
+proj4.defs("EPSG:28992","+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs");
+register(proj4);
+
+
 // 控制表单显示
 const showForm = ref(false);
 
@@ -40,7 +50,7 @@ function submitForm() {
 const routeLayer = new VectorLayer({
   source: new VectorSource(),
   style: new Style({
-    stroke: new Stroke({ color: "#409eff", width: 3 }),
+    stroke: new Stroke({ color: 'blue', width: 20}),
   }),
 });
 
@@ -77,20 +87,22 @@ function decodePolyline(str) {
 }
 
 function addEurisPaths(paths) {
-  const source = routeLayer.getSource(); // ✅ 在函数内部定义 source
-  console.log("📍 paths from API:", paths);
-
+  const source = routeLayer.getSource();
   paths.forEach((encoded) => {
     if (!encoded || encoded.trim() === "") return;
-    const decoded = decodePolyline(encoded);
-    console.log("✅ decoded polyline:", decoded);
 
-    const projected = decoded.map(([lon, lat]) => fromLonLat([lon, lat]));
+    const decoded = decodePolyline(encoded);
+    
+    // EPSG:28992 → EPSG:3857
+    const projected = decoded.map(([y, x]) => transform([x, y], 'EPSG:28992', 'EPSG:3857'));
+        // 打印转换后的坐标数据
+    console.log("🗺️ projected coordinates:", projected);
+    
     const feature = new Feature({ geometry: new LineString(projected) });
     source.addFeature(feature);
   });
-  console.log("📌 添加路径 Feature 数量：", source.getFeatures().length);
 
+  console.log("📌 添加路径 Feature 数量：", source.getFeatures().length);
 }
 
 onMounted(async () => {
