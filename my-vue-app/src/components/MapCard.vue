@@ -29,7 +29,7 @@ const props = defineProps({
 // 注册 EPSG:28992 投影 123456
 proj4.defs(
   "EPSG:28992",
-  "+title=Amersfoort / RD New +proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=565.2369,50.0087,465.658,0.406857330322398,0.350732676542563,-1.8703473836068,4.0812 +units=m +no_defs"
+  "+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=593.16,26.15,478.54,-6.3239,-0.5008,-5.5487,4.0775 +units=m +no_defs +type=crs"
 );
 register(proj4);
 console.log("✅ EPSG:28992 已注册:", getProjection("EPSG:28992"));
@@ -80,7 +80,7 @@ function goTo(place) {
     hengelo: [757391.5712, 6844752.2938],
   };
   view.setCenter(coords[place]);
-  view.setZoom(14);
+  view.setZoom(18);
 }
 
 // ------------------------- 底图图层切换功能 -------------------------

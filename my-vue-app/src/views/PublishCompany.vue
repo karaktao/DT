@@ -13,15 +13,18 @@ import { getCenter } from "ol/extent";
 
 // 功能输入
 import { ref, computed, onMounted } from "vue";
-import proj4 from 'proj4';
-import { register } from 'ol/proj/proj4';
-import { transform } from 'ol/proj';
+import proj4 from "proj4";
+import { register } from "ol/proj/proj4";
+import { transform } from "ol/proj";
 
+import polyline from "@mapbox/polyline";
 
 // 注册EPSG:28992坐标系
-proj4.defs("EPSG:28992","+proj=sterea +lat_0=52.15616055555555 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +units=m +no_defs");
+proj4.defs(
+  "EPSG:28992",
+  "+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=593.16,26.15,478.54,-6.3239,-0.5008,-5.5487,4.0775 +units=m +no_defs +type=crs"
+);
 register(proj4);
-
 
 // 控制表单显示
 const showForm = ref(false);
@@ -47,28 +50,52 @@ function submitForm() {
 }
 
 // ========== 增加 RouteLayer ==========
-const routeLayer = new VectorLayer({
-  source: new VectorSource(),
-  style: new Style({
-    stroke: new Stroke({ color: 'blue', width: 20}),
+
+// 创建导航风格样式
+const routeStyle = new Style({
+  stroke: new Stroke({
+    color: "rgba(0, 123, 255, 0.8)", // 主体蓝色，带透明度
+    width: 5,
+    lineCap: "round",
   }),
 });
 
+// 白色虚线（中心线）
+const dashedCenterLineStyle = new Style({
+  stroke: new Stroke({
+    color: "rgba(255, 255, 255, 0.9)", // 白色中心线，稍带透明
+    width: 1,
+    lineDash: [30, 10, 5, 10],
+    lineCap: "round",
+  }),
+});
+
+// 创建路线图层
+const routeLayer = new VectorLayer({
+  source: new VectorSource(),
+  style: function (feature) {
+    return [routeStyle, dashedCenterLineStyle]; // 外边+内边，形成导航路线视觉
+  },
+});
+
+// Polyline 解码函数（输出为 [lat, lng]）
 function decodePolyline(str) {
   let index = 0,
     lat = 0,
     lng = 0,
     coordinates = [];
+
   while (index < str.length) {
     let b,
       shift = 0,
       result = 0;
+
     do {
       b = str.charCodeAt(index++) - 63;
       result |= (b & 0x1f) << shift;
       shift += 5;
     } while (b >= 0x20);
-    let dlat = result & 1 ? ~(result >> 1) : result >> 1;
+    const dlat = result & 1 ? ~(result >> 1) : result >> 1;
     lat += dlat;
 
     shift = 0;
@@ -78,31 +105,31 @@ function decodePolyline(str) {
       result |= (b & 0x1f) << shift;
       shift += 5;
     } while (b >= 0x20);
-    let dlng = result & 1 ? ~(result >> 1) : result >> 1;
+    const dlng = result & 1 ? ~(result >> 1) : result >> 1;
     lng += dlng;
 
-    coordinates.push([lng / 1e5, lat / 1e5]);
+    coordinates.push([lat / 1e6, lng / 1e6]); // [lat, lng]
   }
   return coordinates;
 }
-
+// rd转换为墨卡托并添加图层
 function addEurisPaths(paths) {
   const source = routeLayer.getSource();
-  paths.forEach((encoded) => {
+  source.clear();
+
+  paths.forEach((encoded, index) => {
     if (!encoded || encoded.trim() === "") return;
-
-    const decoded = decodePolyline(encoded);
-    
-    // EPSG:28992 → EPSG:3857
-    const projected = decoded.map(([y, x]) => transform([x, y], 'EPSG:28992', 'EPSG:3857'));
-        // 打印转换后的坐标数据
-    console.log("🗺️ projected coordinates:", projected);
-    
-    const feature = new Feature({ geometry: new LineString(projected) });
+    const decoded = decodePolyline(encoded); // [y_in_km, x_in_km]
+    const projected = decoded.map(([lat, lon]) => fromLonLat([lon, lat])); // ✅ WGS84 → Web Mercator
+    const feature = new Feature({
+      geometry: new LineString(projected),
+    });
     source.addFeature(feature);
+    // console.log("📍 解码前坐标:", encoded);
+    // console.log("📍 解码后坐标（未经处理）:", decoded);
+    // console.log("🗺️ 投影后墨卡托坐标:", projected);
+    // console.log("📌 添加路径数：", source.getFeatures().length);
   });
-
-  console.log("📌 添加路径 Feature 数量：", source.getFeatures().length);
 }
 
 onMounted(async () => {
